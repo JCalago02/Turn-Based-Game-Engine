@@ -3,7 +3,7 @@ CXXFLAGS := -std=c++17 -Wall
 
 SRC_DIR := src
 BUILD_DIR := build
-EXECUTABLE := exec.exe
+EXECUTABLE := exec
 
 # Generates a list of input files (all .cpp files in SRC_DIR)
 SRCS := $(wildcard $(SRC_DIR)/*.cpp)
