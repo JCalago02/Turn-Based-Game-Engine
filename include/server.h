@@ -31,11 +31,12 @@ namespace JC_Engine {
             void log(std::string msg);
 
         protected:
-            virtual void readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset = 0) = 0; 
+            virtual bool readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset = 0) = 0; 
             virtual TClientMsg parseClientMsg(std::vector<std::byte> msgArr) = 0;
             virtual void encodeServerMsg(const TServerMsg& msg, std::vector<std::byte>& toPopulate) = 0; 
         private:
             void process(); // thread method, not to be called otherwise 
+            std::thread _workerThread;
             std::atomic<bool> _running;
 
             int _portno;
@@ -91,12 +92,12 @@ namespace JC_Engine {
             _errStat = 3;
             return;
         }
+
         std::cout << "Server is open on port " << _portno << std::endl;
 
         _running.store(true);
 
-        // TODO: Actually launch a child thread to call process()
-        process();
+        _workerThread = std::thread(&Server::process, this);
     }
 
 
@@ -106,6 +107,7 @@ namespace JC_Engine {
         // shut down thread
         if (_running.load()) {
             _running.store(false);
+            _workerThread.join();
         }
 
         // destroy connection resources
@@ -152,10 +154,12 @@ namespace JC_Engine {
     template <typename TClientMsg, typename TServerMsg>
     void Server<TClientMsg, TServerMsg>::process() {
         while (_running.load()) {
-            int ret = poll(_clientFds.data(), _clientFds.size(), -1);
+            // Timeout val is in MS: -1: Block indefinitely, 0: Block for 0
+            int ret = poll(_clientFds.data(), _clientFds.size(), 1000); // Set to return every 5 seconds
             if (ret == -1) {
                 break; // TODO: Should introduce some error handling here
             }
+            std::cout << "Found (" << ret << ") incoming client msgs" << std::endl;
 
             for (size_t i = 0; i < _clientFds.size(); i++) {
                 int fd = _clientFds[i].fd;

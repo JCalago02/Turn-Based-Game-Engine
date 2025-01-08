@@ -1,20 +1,25 @@
 #include <iostream>
-#include "../include/server.h"
+
+#include <chrono>
+#include <thread>
+
+#include "../include/test.h"
 int main() {  
     
 
-    std::cout << "Starting server " << std::endl;
-    JC_Engine::Server testServer = JC_Engine::Server(8080);
-    if (!testServer.isValid()) {
-        testServer.printErr();
-    }
+    std::cout << "Instantiating server " << std::endl;
+    SimpleIntServer myServer(12345);
 
-    // while(1) {
-    //     int acc = accept(server_sock, nullptr, nullptr);
-    //     std::cout << "Recieved an incoming connection to our server. Fd is: " << acc << std::endl;
-    // }
+    std::cout << "Starting Server " << std::endl;
+    myServer.start();
 
+    std::cout << "Sleeping for 10 seconds" << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(10));
 
+    std::cout << "Stopping server manually" << std::endl;
+    myServer.stop();
+    
+    std::cout << "Done!" << std::endl;
     return 0;
 }
 
