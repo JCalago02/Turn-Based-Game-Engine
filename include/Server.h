@@ -130,6 +130,7 @@ namespace JC_Engine {
 
         _fdInBuffers[newFd] = std::vector<std::byte>();
         _fdOutBuffers[newFd] = std::queue<TServerMsg>(); // TODO: Replace with concurrent queue
+        _clientFds.push_back(newFdObj);
 
         return _nextId++; 
     }

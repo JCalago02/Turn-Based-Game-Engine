@@ -1,8 +1,14 @@
+#pragma once
+
+#include <cerrno>
+#include <cstring>
+#include <iostream>
+#include <netdb.h>
 #include <netinet/in.h>
+#include <unistd.h>
 #include <vector>
 #include <string>
 #include <sys/socket.h>
-#include <netdb.h>
 
 namespace JC_Engine {
     template <typename TClientMsg, typename TServerMsg>
@@ -18,10 +24,10 @@ namespace JC_Engine {
         protected:
             virtual bool readServerMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset = 0) = 0;
             virtual TServerMsg parseServerMsg(const std::vector<std::byte>& msgArr) = 0;
-            virtual void encodeClientMsg(const TClientMsg& msg);
+            virtual void encodeClientMsg(const TClientMsg& msg, std::vector<std::byte>& toPopulate) = 0;
         private:
-            addrinfo *_res;
             bool _isDebug;
+            addrinfo *_res = NULL;
             int _sockFd = -1;
             int _errStat = 0;
     };
@@ -31,31 +37,61 @@ namespace JC_Engine {
         addrinfo hints{}, *res;
         hints.ai_family = AF_INET;
         hints.ai_socktype = SOCK_STREAM;   
-        _res = res;
 
-        if (getaddrinfo(host.c_str(), std::to_string(portno).c_str(), &hints, &res) == 0) {
+        if (getaddrinfo(host.c_str(), std::to_string(portno).c_str(), &hints, &res) != 0) {
+            std::cout << "getaddrinfo() failed " << std::endl;
             _errStat = 1;
             return;
         }
 
         if ((_sockFd = socket(res->ai_family, res->ai_socktype, 0)) == -1) {
+            std::cout << "Socket() failed " << std::endl;
             _errStat = 2;
         }
+
+
+        _res = res;
     }
 
 
     template <typename TClientMsg, typename TServerMsg>
     void Client<TClientMsg, TServerMsg>::start() {
         if (connect(_sockFd, _res->ai_addr, _res->ai_addrlen) == -1) {
+            std::cout << "Connect() failed " << std::endl;
+            std::cout << strerror(errno) << std::endl;
             _errStat = 3;
-            return;
         }
     }
 
 
     template <typename TClientMsg, typename TServerMsg>
     Client<TClientMsg, TServerMsg>::~Client() {
-        freeaddrinfo(_res);
         stop(); 
+    }
+
+
+    template <typename TClientMsg, typename TServerMsg>
+    void Client<TClientMsg, TServerMsg>::stop() {
+        if (_res) {
+            freeaddrinfo(_res);
+            _res = NULL;
+        }
+
+        if (_sockFd != -1) {
+            close(_sockFd);
+            _sockFd = -1;
+        }
+    }
+
+
+    template <typename TClientMsg, typename TServerMsg>
+    TServerMsg Client<TClientMsg, TServerMsg>::getMsg() {
+        std::cout << "Client getting msg not implemented " << std::endl;
+    }
+
+
+    template <typename TClientMsg, typename TServerMsg>
+    void Client<TClientMsg, TServerMsg>::sendMsg(const TClientMsg& msg) {
+        std::cout << "Client sending msg not implemented " << std::endl;
     }
 }

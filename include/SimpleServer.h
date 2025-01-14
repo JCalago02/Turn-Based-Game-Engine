@@ -1,6 +1,6 @@
 #pragma once
 
-#include "server.h"
+#include "Server.h"
 #include <vector>
 #include <utility>
 #include <iostream>

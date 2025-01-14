@@ -23,6 +23,7 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
 exec : $(OBJS)
 	$(CXX) $(CXXFLAGS) $^ -o $(EXECUTABLE)
 
-
+clean:
+	rm -rf $(BUILD_DIR)/*.o $(EXECUTABLE)
 
 

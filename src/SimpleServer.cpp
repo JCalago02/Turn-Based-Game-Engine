@@ -1,4 +1,4 @@
-#include "../include/test.h"
+#include "../include/SimpleServer.h"
 
 
 SimpleIntServer::SimpleIntServer(int portno, bool isDebug) : JC_Engine::Server<int, int>(portno) {}
@@ -18,5 +18,4 @@ int SimpleIntServer::parseClientMsg(std::vector<std::byte> msgArr) {
 void SimpleIntServer::encodeServerMsg(const int& msg, std::vector<std::byte>& toPopulate) {
     std::byte newByte{msg % 2 == 0};
     toPopulate.push_back(newByte);
-    return;
 }
