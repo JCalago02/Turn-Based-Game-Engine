@@ -32,9 +32,19 @@ int main() {
     std::cout << "Accepting connection on server " << std::endl;
     myServer.acceptConnection();
 
-    int waitTimeSec = 5;
+    std::cout << "Sending client msg: " << std::endl;
+    myClient.sendMsg(100);
+
+    int waitTimeSec = 2;
     std::cout << "Sleeping for " << waitTimeSec << " seconds" << std::endl;
     std::this_thread::sleep_for(std::chrono::seconds(waitTimeSec));
+
+    std::cout << "Reading server for messages: " << std::endl;
+    int msg = myServer.getMsg();
+    std::cout << "Recieved " << msg << " on server " << std::endl;
+
+    std::cout << "Sending additional client msg: " << std::endl;
+    myClient.sendMsg(100);
 
     std::cout << "Stopping client manually" << std::endl;
     myClient.stop();

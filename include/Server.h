@@ -31,8 +31,8 @@ namespace JC_Engine {
             void log(std::string msg);
 
         protected:
-            virtual bool readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset = 0) = 0; 
-            virtual TClientMsg parseClientMsg(std::vector<std::byte> msgArr) = 0;
+            virtual bool readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t expectedBytes) = 0; 
+            virtual TClientMsg parseClientMsg(const std::vector<std::byte>& msgArr) = 0;
             virtual void encodeServerMsg(const TServerMsg& msg, std::vector<std::byte>& toPopulate) = 0; 
         private:
             void process(); // thread method, not to be called otherwise 
@@ -46,6 +46,7 @@ namespace JC_Engine {
 
             std::unordered_map<int, std::vector<std::byte>> _fdInBuffers; 
             std::unordered_map<int, std::queue<TServerMsg>> _fdOutBuffers; // TODO: Replace with concurrent queue
+            std::unordered_map<int, int> _fdInBufferSize;
             std::queue<TClientMsg> _msgQueue; // TODO: Replace with concurrent queue
 
             bool _isDebug;
@@ -122,13 +123,14 @@ namespace JC_Engine {
     template <typename TClientMsg, typename TServerMsg>
     int Server<TClientMsg, TServerMsg>::acceptConnection() {
         int newFd = accept(_sockFd, NULL, NULL);
-
+        std::cout << "New conn, fd: " << newFd << std::endl;
         struct pollfd newFdObj;
         newFdObj.fd = newFd;
         newFdObj.events = POLLIN | POLLOUT;
 
 
-        _fdInBuffers[newFd] = std::vector<std::byte>();
+        _fdInBuffers[newFd] = std::vector<std::byte>(sizeof(TClientMsg));
+        _fdInBufferSize[newFd] = 0;
         _fdOutBuffers[newFd] = std::queue<TServerMsg>(); // TODO: Replace with concurrent queue
         _clientFds.push_back(newFdObj);
 
@@ -141,7 +143,12 @@ namespace JC_Engine {
     // --------------------------------------------------------------------------------
     template <typename TClientMsg, typename TServerMsg>
     TClientMsg Server<TClientMsg, TServerMsg>::getMsg() {
-        return _msgQueue.front();
+        if (_msgQueue.empty()) { // TODO: Can remove when we switch to concurrent queue
+            return TClientMsg();
+        }
+        TClientMsg msg = _msgQueue.front();
+        _msgQueue.pop();
+        return msg;
     }
 
     template <typename TClientMsg, typename TServerMsg>
@@ -156,24 +163,25 @@ namespace JC_Engine {
     void Server<TClientMsg, TServerMsg>::process() {
         while (_running.load()) {
             // Timeout val is in MS: -1: Block indefinitely, 0: Block for 0
-            int ret = poll(_clientFds.data(), _clientFds.size(), 1000); // Set to return every 5 seconds
+            int ret = poll(_clientFds.data(), _clientFds.size(), 1000); // Set to return every second
             if (ret == -1) {
                 break; // TODO: Should introduce some error handling here
             }
-            std::cout << "Found (" << ret << ") incoming client msgs" << std::endl;
 
             for (size_t i = 0; i < _clientFds.size(); i++) {
                 int fd = _clientFds[i].fd;
-
                 // read messages
                 if (_clientFds[i].revents & POLLIN) {
-                    bool successfulRead = readClientMsg(_clientFds[i].fd, _fdInBuffers[fd], _fdInBuffers[fd].size());
-                    if (successfulRead) {
-                        _msgQueue.push(parseClientMsg(_fdInBuffers[fd]));
-                    } else if (_fdInBuffers[fd].size() == 0) {
-                        std::cerr << "Fd: " << fd << _clientFds[i].fd << " is being evicted by readClientMsg() " <<std::endl;
-                        // TODO: Actually evict the client
-                    }
+                    bool completedRead = readClientMsg(_clientFds[i].fd, _fdInBuffers[fd], _fdInBufferSize[fd]);
+                    if (completedRead) {
+                        const std::vector<std::byte>& clientMsgArr = _fdInBuffers[fd];
+                        const TClientMsg clientMsg = parseClientMsg(clientMsgArr);
+                        _msgQueue.push(clientMsg);
+
+                        _fdInBuffers[fd].clear();
+                        _fdInBuffers[fd].resize(sizeof(TClientMsg));
+                        _fdInBufferSize[fd] = 0;
+                    }                
                 }
 
                 // send messages

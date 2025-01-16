@@ -92,6 +92,15 @@ namespace JC_Engine {
 
     template <typename TClientMsg, typename TServerMsg>
     void Client<TClientMsg, TServerMsg>::sendMsg(const TClientMsg& msg) {
-        std::cout << "Client sending msg not implemented " << std::endl;
+        std::vector<std::byte> toPopulateBuffer(sizeof(TClientMsg));
+        encodeClientMsg(msg, toPopulateBuffer);
+
+        ssize_t bytesWritten = write(_sockFd, toPopulateBuffer.data(), sizeof(TClientMsg));
+        if (bytesWritten == -1) {
+            std::cerr << "Write() failed" << strerror(errno) << std::endl;
+            return;
+        } else {
+            std::cout << "Wrote " << bytesWritten << " bytes to the server" << std::endl;
+        }
     }
 }

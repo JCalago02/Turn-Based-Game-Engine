@@ -15,6 +15,8 @@ int SimpleIntClient::parseServerMsg(const std::vector<std::byte>& msgArr) {
 
 
 void SimpleIntClient::encodeClientMsg(const int& msg, std::vector<std::byte>& toPopulate) {
-    std::byte newByte{msg % 2 == 0};
-    toPopulate.push_back(newByte);
+    std::memcpy(toPopulate.data(), &msg, sizeof(int));
+    for (size_t i = 0; i < toPopulate.size(); i++) {
+        std::cout << "W " << i << ", " << std::to_integer<int>(toPopulate[i]) << std::endl;
+    }
 }
