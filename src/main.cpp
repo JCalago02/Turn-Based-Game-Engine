@@ -35,6 +35,9 @@ int main() {
     std::cout << "Sending client msg: " << std::endl;
     myClient.sendMsg(100);
 
+    std::cout << "Sending additional client msg: " << std::endl;
+    myClient.sendMsg(200);
+
     int waitTimeSec = 2;
     std::cout << "Sleeping for " << waitTimeSec << " seconds" << std::endl;
     std::this_thread::sleep_for(std::chrono::seconds(waitTimeSec));
@@ -42,9 +45,9 @@ int main() {
     std::cout << "Reading server for messages: " << std::endl;
     int msg = myServer.getMsg();
     std::cout << "Recieved " << msg << " on server " << std::endl;
-
-    std::cout << "Sending additional client msg: " << std::endl;
-    myClient.sendMsg(100);
+    
+    msg = myServer.getMsg();
+    std::cout << "Recieved " << msg << " on server " << std::endl;
 
     std::cout << "Stopping client manually" << std::endl;
     myClient.stop();

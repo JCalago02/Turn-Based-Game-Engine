@@ -10,7 +10,7 @@ class SimpleIntServer: public JC_Engine::Server<int, int> {
     public:
         SimpleIntServer(int portno, bool isDebug = false);
     protected:
-        bool readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset); 
+        ssize_t readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset); 
         int parseClientMsg(const std::vector<std::byte>& msgArr);
         void encodeServerMsg(const int& msg, std::vector<std::byte>& toPopulate); 
 

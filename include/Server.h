@@ -22,7 +22,8 @@ namespace JC_Engine {
             void start(int maxPendingConn = 10);
             void stop();
             int acceptConnection();
-            
+            void evictConnection(int id);
+
             TClientMsg getMsg();
             void sendMsg(int clientFd, const TServerMsg& msg);
 
@@ -31,7 +32,7 @@ namespace JC_Engine {
             void log(std::string msg);
 
         protected:
-            virtual bool readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t expectedBytes) = 0; 
+            virtual ssize_t readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t expectedBytes) = 0; 
             virtual TClientMsg parseClientMsg(const std::vector<std::byte>& msgArr) = 0;
             virtual void encodeServerMsg(const TServerMsg& msg, std::vector<std::byte>& toPopulate) = 0; 
         private:
@@ -44,6 +45,8 @@ namespace JC_Engine {
             int _nextId = 1;
             std::vector<struct pollfd> _clientFds;
 
+            std::unordered_map<int, int> _idOfFd;
+            std::unordered_map<int, int> _fdOfId; // TODO: This is ugly..., prolly should create a struct
             std::unordered_map<int, std::vector<std::byte>> _fdInBuffers; 
             std::unordered_map<int, std::queue<TServerMsg>> _fdOutBuffers; // TODO: Replace with concurrent queue
             std::unordered_map<int, int> _fdInBufferSize;
@@ -128,16 +131,51 @@ namespace JC_Engine {
         newFdObj.fd = newFd;
         newFdObj.events = POLLIN | POLLOUT;
 
+        _idOfFd[newFd] = _nextId;
+        _fdOfId[_nextId] = newFd;
+        _fdInBuffers[_nextId] = std::vector<std::byte>(sizeof(TClientMsg));
+        _fdInBufferSize[_nextId] = 0;
+        _fdOutBuffers[_nextId] = std::queue<TServerMsg>(); // TODO: Replace with concurrent queue
 
-        _fdInBuffers[newFd] = std::vector<std::byte>(sizeof(TClientMsg));
-        _fdInBufferSize[newFd] = 0;
-        _fdOutBuffers[newFd] = std::queue<TServerMsg>(); // TODO: Replace with concurrent queue
         _clientFds.push_back(newFdObj);
-
         return _nextId++; 
     }
 
 
+    template <typename TClientMsg, typename TServerMsg>
+    void Server<TClientMsg, TServerMsg>::evictConnection(int id) {
+        auto fdIt = _fdOfId.find(id);
+        int fdToDelete = fdIt->second;
+        bool invalidId = (fdIt == _fdOfId.end()); 
+        if (invalidId) {
+            return;
+        }
+        _fdOfId.erase(fdIt);
+
+
+        for (size_t i = 0; i < _clientFds.size(); i++) {
+            if (fdToDelete == _clientFds[i].fd) {
+                _clientFds.erase(_clientFds.begin() + i);
+                break;
+            }
+        }
+
+        auto idIt = _idOfFd.find(fdToDelete);
+        _idOfFd.erase(idIt);
+
+        auto fdInIt = _fdInBuffers.find(id);
+        _fdInBuffers.erase(fdInIt);
+
+        auto fdInSizeIt = _fdInBufferSize.find(id);
+        _fdInBufferSize.erase(fdInSizeIt);
+
+
+        auto fdOutIt = _fdOutBuffers.find(id);
+        _fdOutBuffers.erase(fdOutIt);
+
+        shutdown(fdToDelete, SHUT_RDWR);
+        close(fdToDelete);
+    }
     // --------------------------------------------------------------------------------
     // messsage handling                                                              - 
     // --------------------------------------------------------------------------------
@@ -170,18 +208,21 @@ namespace JC_Engine {
 
             for (size_t i = 0; i < _clientFds.size(); i++) {
                 int fd = _clientFds[i].fd;
+                int id = _idOfFd[fd];
                 // read messages
                 if (_clientFds[i].revents & POLLIN) {
-                    bool completedRead = readClientMsg(_clientFds[i].fd, _fdInBuffers[fd], _fdInBufferSize[fd]);
-                    if (completedRead) {
-                        const std::vector<std::byte>& clientMsgArr = _fdInBuffers[fd];
+                    ssize_t clientStatus = readClientMsg(_clientFds[i].fd, _fdInBuffers[id], _fdInBufferSize[id]);
+                    if (clientStatus == 1) {
+                        const std::vector<std::byte>& clientMsgArr = _fdInBuffers[id];
                         const TClientMsg clientMsg = parseClientMsg(clientMsgArr);
                         _msgQueue.push(clientMsg);
 
-                        _fdInBuffers[fd].clear();
-                        _fdInBuffers[fd].resize(sizeof(TClientMsg));
-                        _fdInBufferSize[fd] = 0;
-                    }                
+                        _fdInBuffers[id].clear();
+                        _fdInBuffers[id].resize(sizeof(TClientMsg));
+                        _fdInBufferSize[id] = 0;
+                    } else if (clientStatus == -1) { // should evict
+                        evictConnection(id); 
+                    }
                 }
 
                 // send messages

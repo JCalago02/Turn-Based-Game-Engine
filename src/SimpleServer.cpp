@@ -4,18 +4,22 @@
 SimpleIntServer::SimpleIntServer(int portno, bool isDebug) : JC_Engine::Server<int, int>(portno) {}
 
 // TODO: Implement fd read() error handling 
-bool SimpleIntServer::readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset) {
+ssize_t SimpleIntServer::readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset) {
     ssize_t bytesRead = read(clientFd, toPopulate.data() + offset, toPopulate.size() - offset);
     for (ssize_t i = 0; i < bytesRead; i++) {
         std::cout << offset + i << ", " << std::to_integer<int>(toPopulate[offset + i]) << std::endl;
     }
+
     if (bytesRead == -1) {
         std::cerr << "Error ocurred while reading " << std::endl;
+        return -1;
     } else if (bytesRead == 0) {
         std::cout << "Graceful connection close for fd: " << clientFd << std::endl;
+        return -1;
     }
-
-    return (static_cast<size_t>(bytesRead) == (toPopulate.size() + offset));
+   
+    bool completedRead = (static_cast<size_t>(bytesRead) == (toPopulate.size() + offset));
+    return completedRead;
 }
 
 int SimpleIntServer::parseClientMsg(const std::vector<std::byte>& msgArr) {
