@@ -1,3 +1,7 @@
 /build
+/tests/catch.hpp
 *.exe
 exec
+test
+
+
