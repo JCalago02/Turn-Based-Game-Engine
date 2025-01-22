@@ -22,9 +22,9 @@ namespace JC_Engine {
             TServerMsg getMsg();
             void sendMsg(const TClientMsg& msg);
         protected:
-            virtual bool readServerMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset = 0) = 0;
-            virtual TServerMsg parseServerMsg(const std::vector<std::byte>& msgArr) = 0;
-            virtual void encodeClientMsg(const TClientMsg& msg, std::vector<std::byte>& toPopulate) = 0;
+            virtual bool readServerMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset = 0);
+            virtual TServerMsg parseServerMsg(const std::vector<std::byte>& msgArr);
+            virtual void encodeClientMsg(const TClientMsg& msg, std::vector<std::byte>& toPopulate);
         private:
             bool _isDebug;
             addrinfo *_res = NULL;
@@ -102,5 +102,25 @@ namespace JC_Engine {
         } else {
             std::cout << "Wrote " << bytesWritten << " bytes to the server" << std::endl;
         }
+    }
+
+
+    template <typename TClientMsg, typename TServerMsg>
+    bool Client<TClientMsg, TServerMsg>::readServerMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset) {
+        std::cout << "Attempting to read from" << clientFd << " given offset " << offset << std::endl;
+        return true;
+    }
+
+
+    template <typename TClientMsg, typename TServerMsg>
+    TServerMsg Client<TClientMsg, TServerMsg>::parseServerMsg(const std::vector<std::byte>& msgArr) { 
+        std::cout << "Attempting to parse a client msg, just returning -1" << std::endl;
+        return TServerMsg();
+    }
+
+
+    template <typename TClientMsg, typename TServerMsg>
+    void Client<TClientMsg, TServerMsg>::encodeClientMsg(const TClientMsg& msg, std::vector<std::byte>& toPopulate) {
+        std::memcpy(toPopulate.data(), &msg, sizeof(int));
     }
 }

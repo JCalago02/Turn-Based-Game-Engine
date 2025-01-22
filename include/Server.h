@@ -32,9 +32,9 @@ namespace JC_Engine {
             void log(std::string msg);
 
         protected:
-            virtual ssize_t readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t expectedBytes) = 0; 
-            virtual TClientMsg parseClientMsg(const std::vector<std::byte>& msgArr) = 0;
-            virtual void encodeServerMsg(const TServerMsg& msg, std::vector<std::byte>& toPopulate) = 0; 
+            virtual ssize_t readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t expectedBytes); 
+            virtual TClientMsg parseClientMsg(const std::vector<std::byte>& msgArr);
+            virtual void encodeServerMsg(const TServerMsg& msg, std::vector<std::byte>& toPopulate); 
         private:
             void process(); // thread method, not to be called otherwise 
             std::thread _workerThread;
@@ -195,6 +195,40 @@ namespace JC_Engine {
         if (it != _fdOutBuffers.end()) {
             it->second.push(msg);
         }
+    }
+
+
+    template <typename TClientMsg, typename TServerMsg> 
+    ssize_t Server<TClientMsg, TServerMsg>::readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset) {
+        ssize_t bytesRead = read(clientFd, toPopulate.data() + offset, toPopulate.size() - offset);
+        for (ssize_t i = 0; i < bytesRead; i++) {
+            std::cout << offset + i << ", " << std::to_integer<int>(toPopulate[offset + i]) << std::endl;
+        }
+
+        if (bytesRead == -1) {
+            std::cerr << "Error ocurred while reading " << std::endl;
+            return -1;
+        } else if (bytesRead == 0) {
+            std::cout << "Graceful connection close for fd: " << clientFd << std::endl;
+            return -1;
+        }
+       
+        bool completedRead = (static_cast<size_t>(bytesRead) == (toPopulate.size() + offset));
+        return completedRead;
+    }
+
+    template <typename TClientMsg, typename TServerMsg>
+    TClientMsg Server<TClientMsg, TServerMsg>::parseClientMsg(const std::vector<std::byte>& msgArr) {
+        TClientMsg recievedMsg;
+        std::memcpy(&recievedMsg, msgArr.data(), sizeof(int));
+        return recievedMsg;
+    }
+
+    // TODO: Still not finished
+    template <typename  TClientMsg, typename TServerMsg>
+    void Server<TClientMsg, TServerMsg>::encodeServerMsg(const TServerMsg& msg, std::vector<std::byte>& toPopulate) {
+        std::byte newByte{msg % 2 == 0};
+        toPopulate.push_back(newByte);
     }
 
     template <typename TClientMsg, typename TServerMsg>

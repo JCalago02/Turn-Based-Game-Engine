@@ -3,15 +3,15 @@
 #include <chrono>
 #include <thread>
 
-#include "../include/SimpleServer.h"
-#include "../include/SimpleClient.h"
+#include "../include/Server.h"
+#include "../include/Client.h"
 
 #define PORTNO 12345
 int main() {  
     
     
     std::cout << "Instantiating server " << std::endl;
-    SimpleIntServer myServer(PORTNO);
+    JC_Engine::Server<int, int> myServer(PORTNO);
 
     std::cout << "Starting Server " << std::endl;
     myServer.start();
@@ -23,7 +23,7 @@ int main() {
     }
 
     std::cout << "Instantiating Client " << std::endl;
-    SimpleIntClient myClient("127.0.0.1", PORTNO);
+    JC_Engine::Client<int, int> myClient("127.0.0.1", PORTNO);
 
 
     std::cout << "Connecting Server " << std::endl;
