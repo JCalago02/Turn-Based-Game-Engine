@@ -11,7 +11,9 @@
 #include <thread>
 #include <unistd.h>
 #include <unordered_map>
+#include <utility>
 #include <vector>
+#include "ConcurrentQueue.h"
 
 namespace JC_Engine {
     template <typename TClientMsg, typename TServerMsg>
@@ -25,7 +27,7 @@ namespace JC_Engine {
             void evictConnection(int id);
 
             TClientMsg getMsg();
-            void sendMsg(int clientFd, const TServerMsg& msg);
+            void sendMsg(int clientFd, TServerMsg& msg);
 
             bool isValid();
             void printErr();
@@ -48,9 +50,9 @@ namespace JC_Engine {
             std::unordered_map<int, int> _idOfFd;
             std::unordered_map<int, int> _fdOfId; // TODO: This is ugly..., prolly should create a struct
             std::unordered_map<int, std::vector<std::byte>> _fdInBuffers; 
-            std::unordered_map<int, std::queue<TServerMsg>> _fdOutBuffers; // TODO: Replace with concurrent queue
+            std::unordered_map<int, ConcurrentQueue<TServerMsg>> _fdOutBuffers; 
             std::unordered_map<int, int> _fdInBufferSize;
-            std::queue<TClientMsg> _msgQueue; // TODO: Replace with concurrent queue
+            ConcurrentQueue<TClientMsg> _msgQueue; 
 
             bool _isDebug;
             int _errStat = 0;
@@ -126,7 +128,7 @@ namespace JC_Engine {
     template <typename TClientMsg, typename TServerMsg>
     int Server<TClientMsg, TServerMsg>::acceptConnection() {
         int newFd = accept(_sockFd, NULL, NULL);
-        std::cout << "New conn, fd: " << newFd << std::endl;
+
         struct pollfd newFdObj;
         newFdObj.fd = newFd;
         newFdObj.events = POLLIN | POLLOUT;
@@ -135,8 +137,7 @@ namespace JC_Engine {
         _fdOfId[_nextId] = newFd;
         _fdInBuffers[_nextId] = std::vector<std::byte>(sizeof(TClientMsg));
         _fdInBufferSize[_nextId] = 0;
-        _fdOutBuffers[_nextId] = std::queue<TServerMsg>(); // TODO: Replace with concurrent queue
-
+        _fdOutBuffers[_nextId];
         _clientFds.push_back(newFdObj);
         return _nextId++; 
     }
@@ -181,19 +182,14 @@ namespace JC_Engine {
     // --------------------------------------------------------------------------------
     template <typename TClientMsg, typename TServerMsg>
     TClientMsg Server<TClientMsg, TServerMsg>::getMsg() {
-        if (_msgQueue.empty()) { // TODO: Can remove when we switch to concurrent queue
-            return TClientMsg();
-        }
-        TClientMsg msg = _msgQueue.front();
-        _msgQueue.pop();
-        return msg;
+        return _msgQueue.pop();
     }
 
     template <typename TClientMsg, typename TServerMsg>
-    void Server<TClientMsg, TServerMsg>::sendMsg(int clientFd, const TServerMsg& msg) {
+    void Server<TClientMsg, TServerMsg>::sendMsg(int clientFd, TServerMsg& msg) {
         auto it = _fdOutBuffers.find(clientFd);
         if (it != _fdOutBuffers.end()) {
-            it->second.push(msg);
+            it->second.push(std::move(msg));
         }
     }
 
@@ -201,15 +197,11 @@ namespace JC_Engine {
     template <typename TClientMsg, typename TServerMsg> 
     ssize_t Server<TClientMsg, TServerMsg>::readClientMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset) {
         ssize_t bytesRead = read(clientFd, toPopulate.data() + offset, toPopulate.size() - offset);
-        for (ssize_t i = 0; i < bytesRead; i++) {
-            std::cout << offset + i << ", " << std::to_integer<int>(toPopulate[offset + i]) << std::endl;
-        }
 
         if (bytesRead == -1) {
             std::cerr << "Error ocurred while reading " << std::endl;
             return -1;
         } else if (bytesRead == 0) {
-            std::cout << "Graceful connection close for fd: " << clientFd << std::endl;
             return -1;
         }
        
@@ -239,8 +231,9 @@ namespace JC_Engine {
             if (ret == -1) {
                 break; // TODO: Should introduce some error handling here
             }
-
+            
             for (size_t i = 0; i < _clientFds.size(); i++) {
+
                 int fd = _clientFds[i].fd;
                 int id = _idOfFd[fd];
                 // read messages
@@ -248,8 +241,7 @@ namespace JC_Engine {
                     ssize_t clientStatus = readClientMsg(_clientFds[i].fd, _fdInBuffers[id], _fdInBufferSize[id]);
                     if (clientStatus == 1) {
                         const std::vector<std::byte>& clientMsgArr = _fdInBuffers[id];
-                        const TClientMsg clientMsg = parseClientMsg(clientMsgArr);
-                        _msgQueue.push(clientMsg);
+                        _msgQueue.push(parseClientMsg(clientMsgArr));
 
                         _fdInBuffers[id].clear();
                         _fdInBuffers[id].resize(sizeof(TClientMsg));
@@ -257,13 +249,14 @@ namespace JC_Engine {
                     } else if (clientStatus == -1) { // should evict
                         evictConnection(id); 
                     }
-                }
 
+                }
+                
                 // send messages
                 const bool canWrite = _clientFds[i].revents & POLLOUT;
-                while (!_fdOutBuffers[fd].empty() && canWrite) { // replace .empty() with threadsafe queue equiv (wouldBlock)
-                    TServerMsg& outMsg = _fdOutBuffers[fd].front();
-                    sendMsg(_clientFds[i].fd, outMsg);
+                while (!_fdOutBuffers[fd].wouldBlock() && canWrite) {
+                    TServerMsg serverMsg = _fdOutBuffers[fd].pop();
+                    sendMsg(_clientFds[i].fd, serverMsg);
                 }
             }
             
