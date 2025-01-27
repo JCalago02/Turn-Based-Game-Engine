@@ -1,5 +1,6 @@
 #pragma once
 
+#include <asm-generic/socket.h>
 #include <atomic>
 #include <cstring>
 #include <iostream>
@@ -50,8 +51,8 @@ namespace JC_Engine {
             std::unordered_map<int, int> _idOfFd;
             std::unordered_map<int, int> _fdOfId; // TODO: This is ugly..., prolly should create a struct
             std::unordered_map<int, std::vector<std::byte>> _fdInBuffers; 
-            std::unordered_map<int, ConcurrentQueue<TServerMsg>> _fdOutBuffers; 
-            std::unordered_map<int, int> _fdInBufferSize;
+            std::unordered_map<int, ConcurrentQueue<TServerMsg>> _fdOutQueue; 
+            std::unordered_map<int, int> _fdInBufferSize; // TODO: This map value isn't actually used... if we want this to work across longer reads, should reformat
             ConcurrentQueue<TClientMsg> _msgQueue; 
 
             bool _isDebug;
@@ -73,6 +74,12 @@ namespace JC_Engine {
 
         if ((_sockFd = socket(serverAddress.sin_family, SOCK_STREAM, 0)) == -1) {
             _errStat = 1;
+            return;
+        }
+
+        int opt = 1;
+        if (setsockopt(_sockFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+            _errStat = 4;
             return;
         }
     
@@ -137,8 +144,9 @@ namespace JC_Engine {
         _fdOfId[_nextId] = newFd;
         _fdInBuffers[_nextId] = std::vector<std::byte>(sizeof(TClientMsg));
         _fdInBufferSize[_nextId] = 0;
-        _fdOutBuffers[_nextId];
+        _fdOutQueue[_nextId];
         _clientFds.push_back(newFdObj);
+
         return _nextId++; 
     }
 
@@ -171,8 +179,8 @@ namespace JC_Engine {
         _fdInBufferSize.erase(fdInSizeIt);
 
 
-        auto fdOutIt = _fdOutBuffers.find(id);
-        _fdOutBuffers.erase(fdOutIt);
+        auto fdOutIt = _fdOutQueue.find(id);
+        _fdOutQueue.erase(fdOutIt);
 
         shutdown(fdToDelete, SHUT_RDWR);
         close(fdToDelete);
@@ -186,9 +194,9 @@ namespace JC_Engine {
     }
 
     template <typename TClientMsg, typename TServerMsg>
-    void Server<TClientMsg, TServerMsg>::sendMsg(int clientFd, TServerMsg& msg) {
-        auto it = _fdOutBuffers.find(clientFd);
-        if (it != _fdOutBuffers.end()) {
+    void Server<TClientMsg, TServerMsg>::sendMsg(int clientId, TServerMsg& msg) {
+        auto it = _fdOutQueue.find(clientId);
+        if (it != _fdOutQueue.end()) {
             it->second.push(std::move(msg));
         }
     }
@@ -212,28 +220,25 @@ namespace JC_Engine {
     template <typename TClientMsg, typename TServerMsg>
     TClientMsg Server<TClientMsg, TServerMsg>::parseClientMsg(const std::vector<std::byte>& msgArr) {
         TClientMsg recievedMsg;
-        std::memcpy(&recievedMsg, msgArr.data(), sizeof(int));
+        std::memcpy(&recievedMsg, msgArr.data(), sizeof(TClientMsg));
         return recievedMsg;
     }
 
-    // TODO: Still not finished
     template <typename  TClientMsg, typename TServerMsg>
     void Server<TClientMsg, TServerMsg>::encodeServerMsg(const TServerMsg& msg, std::vector<std::byte>& toPopulate) {
-        std::byte newByte{msg % 2 == 0};
-        toPopulate.push_back(newByte);
+        std::memcpy(toPopulate.data(), &msg, sizeof(TServerMsg));
     }
 
     template <typename TClientMsg, typename TServerMsg>
     void Server<TClientMsg, TServerMsg>::process() {
         while (_running.load()) {
             // Timeout val is in MS: -1: Block indefinitely, 0: Block for 0
-            int ret = poll(_clientFds.data(), _clientFds.size(), 1000); // Set to return every second
+            int ret = poll(_clientFds.data(), _clientFds.size(), 100); // Set to return every 1/10th second
             if (ret == -1) {
                 break; // TODO: Should introduce some error handling here
             }
             
             for (size_t i = 0; i < _clientFds.size(); i++) {
-
                 int fd = _clientFds[i].fd;
                 int id = _idOfFd[fd];
                 // read messages
@@ -254,9 +259,18 @@ namespace JC_Engine {
                 
                 // send messages
                 const bool canWrite = _clientFds[i].revents & POLLOUT;
-                while (!_fdOutBuffers[fd].wouldBlock() && canWrite) {
-                    TServerMsg serverMsg = _fdOutBuffers[fd].pop();
-                    sendMsg(_clientFds[i].fd, serverMsg);
+                while (!_fdOutQueue[id].wouldBlock() && canWrite) {
+                    TServerMsg serverMsg = _fdOutQueue[id].pop();
+
+                    std::vector<std::byte> serverMsgArr; // TODO: We should use a consistent queue, edit when switch to a struct
+                    serverMsgArr.reserve(sizeof(TServerMsg));
+                    encodeServerMsg(serverMsg, serverMsgArr);
+
+                    ssize_t bytesWritten = write(fd, serverMsgArr.data(), sizeof(TServerMsg));
+                    if (bytesWritten == -1) {
+                        std::cerr << "Write() failed to fd: " << fd <<" err: " << strerror(errno) << std::endl;
+                        break;
+                    }
                 }
             }
             
@@ -285,6 +299,9 @@ namespace JC_Engine {
                 break;
             case 3:
                 std::cerr << "listen() failed: ";
+                break;
+            case 4:
+                std::cerr << "setsockopt() failed: ";
                 break;
             default:
                 std::cout << "No error found" << std::endl;
