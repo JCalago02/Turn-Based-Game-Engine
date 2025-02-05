@@ -84,3 +84,22 @@ TEST_CASE("Server Recieves Single Msg From Client (Multiple Clients)", "[server-
     
 
 }
+
+
+TEST_CASE("Client Recieves Single Msg from Server (Single Client)", "[client]") {
+    JC_Engine::Server<int, int> myServer(TESTPORT);
+    myServer.start();
+    
+    JC_Engine::Client<int, int> myClient(LOOPBACKADDR, TESTPORT);
+    myClient.start();
+    REQUIRE(myClient.isValid() == true); 
+
+    int clientId = myServer.acceptConnection();
+
+
+    int MSG = 10;
+    myServer.sendMsg(clientId, MSG);
+
+    REQUIRE(myClient.getMsg() == MSG);
+
+}

@@ -24,11 +24,12 @@ namespace JC_Engine {
 
             void start();
             void stop();
+            bool isValid();
 
             TServerMsg getMsg();
             void sendMsg(const TClientMsg& msg);
         protected:
-            virtual bool readServerMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset = 0);
+            virtual ssize_t readServerMsg(std::vector<std::byte>& toPopulate, size_t offset = 0);
             virtual TServerMsg parseServerMsg(const std::vector<std::byte>& msgArr);
             virtual void encodeClientMsg(const TClientMsg& msg, std::vector<std::byte>& toPopulate);
         private:
@@ -158,8 +159,17 @@ namespace JC_Engine {
 
     template <typename TClientMsg, typename TServerMsg>
     TServerMsg Client<TClientMsg, TServerMsg>::getMsg() {
+        std::vector<std::byte> buffer(sizeof(TServerMsg));
+
+        ssize_t completedMsg = 0;        
+        while (completedMsg == 0) {
+            completedMsg = readServerMsg(buffer, 0);
+        }
         
-        std::cout << "Client getting msg not implemented " << std::endl;
+        if (completedMsg == -1) {
+            return TServerMsg(); // TODO: Should probably add some error handling here
+        }
+        return parseServerMsg(buffer);
     }
 
 
@@ -177,21 +187,36 @@ namespace JC_Engine {
 
 
     template <typename TClientMsg, typename TServerMsg>
-    bool Client<TClientMsg, TServerMsg>::readServerMsg(int clientFd, std::vector<std::byte>& toPopulate, size_t offset) {
-        std::cout << "Attempting to read from" << clientFd << " given offset " << offset << std::endl;
-        return true;
+    ssize_t Client<TClientMsg, TServerMsg>::readServerMsg(std::vector<std::byte>& toPopulate, size_t offset) {
+        ssize_t bytesRead = read(_sockFd, toPopulate.data() + offset, toPopulate.size() - offset);
+        if (bytesRead == -1) {
+            std::cerr << "Error ocurred while reading " << std::endl;
+            return -1;
+        } else if (bytesRead == 0) {
+            return -1;
+        }
+       
+        bool completedRead = (static_cast<size_t>(bytesRead) == (toPopulate.size() + offset));
+        return completedRead;
     }
 
 
     template <typename TClientMsg, typename TServerMsg>
-    TServerMsg Client<TClientMsg, TServerMsg>::parseServerMsg(const std::vector<std::byte>& msgArr) { 
-        std::cout << "Attempting to parse a client msg, just returning -1" << std::endl;
-        return TServerMsg();
+    TServerMsg Client<TClientMsg, TServerMsg>::parseServerMsg(const std::vector<std::byte>& msgArr) {
+        TServerMsg recievedMsg;
+        std::memcpy(&recievedMsg, msgArr.data(), sizeof(TServerMsg));
+        return recievedMsg;
     }
 
 
     template <typename TClientMsg, typename TServerMsg>
     void Client<TClientMsg, TServerMsg>::encodeClientMsg(const TClientMsg& msg, std::vector<std::byte>& toPopulate) {
         std::memcpy(toPopulate.data(), &msg, sizeof(int));
+    }
+
+
+    template <typename TClientMsg, typename TServerMsg>
+    bool Client<TClientMsg, TServerMsg>::isValid() {
+        return _errStat == 0;
     }
 }
