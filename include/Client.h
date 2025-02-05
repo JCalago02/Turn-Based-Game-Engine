@@ -158,6 +158,7 @@ namespace JC_Engine {
 
     template <typename TClientMsg, typename TServerMsg>
     TServerMsg Client<TClientMsg, TServerMsg>::getMsg() {
+        
         std::cout << "Client getting msg not implemented " << std::endl;
     }
 
