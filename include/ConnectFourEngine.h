@@ -1,6 +1,7 @@
 #include "GameEngine.h"
 #include <utility>
 #include <vector>
+#include <iostream>
 
 namespace JC_Engine {
     enum Space {
@@ -11,10 +12,12 @@ namespace JC_Engine {
 
     enum Stage {
         LOBBY,
-        REDT,
-        YELLOWT
+        GAME,
+        POSTGAME
     };
 
+    // IF stage == Lobby, ignore msg
+    // IF stage != Lobby, place currentMove at msg row
     struct ConnectFourMessage {
         int playerId;
         int msg;
@@ -25,16 +28,18 @@ namespace JC_Engine {
             ConnectFourEngine();
             
             void processMessage(ConnectFourMessage msg) override;
-            std::pair<int, ConnectFourMessage> getNextMessage() override;
+            ConnectFourMessage getNextMessage() override;
         private:
             void addPlayer(int id);
-            void handleMove(int move);
+            void handleMove(const ConnectFourMessage& msg, Space color, int otherPlayerId);
 
             std::vector<std::vector<Space>> _board;
+
+            // _nextMsg is built on the simple assumption that each INBOUND message is met with a corresponding OUTBOUND message (1 - 1)
+            ConnectFourMessage _nextMsg{1, 1}; // TODO: Replace invalid defaults
             Stage _gameState;
-            int _playerCount = 0;
+            bool _isRed = true;
             int _redId = -1;
             int _yellowId = -1;
-
     };
 }
