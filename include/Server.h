@@ -27,8 +27,8 @@ namespace JC_Engine {
             int acceptConnection();
             void evictConnection(int id);
 
-            TClientMsg getMsg();
-            void sendMsg(int clientFd, TServerMsg& msg);
+            std::pair<int, TClientMsg> getMsg();
+            void sendMsg(int clientId, TServerMsg& msg);
 
             bool isValid();
             void printErr();
@@ -53,7 +53,7 @@ namespace JC_Engine {
             std::unordered_map<int, std::vector<std::byte>> _fdInBuffers; 
             std::unordered_map<int, ConcurrentQueue<TServerMsg>> _fdOutQueue; 
             std::unordered_map<int, int> _fdInBufferSize; // TODO: This map value isn't actually used... if we want this to work across longer reads, should reformat
-            ConcurrentQueue<TClientMsg> _msgQueue; 
+            ConcurrentQueue<std::pair<int, TClientMsg>> _msgQueue; 
 
             bool _isDebug;
             int _errStat = 0;
@@ -189,7 +189,7 @@ namespace JC_Engine {
     // messsage handling                                                              - 
     // --------------------------------------------------------------------------------
     template <typename TClientMsg, typename TServerMsg>
-    TClientMsg Server<TClientMsg, TServerMsg>::getMsg() {
+    std::pair<int, TClientMsg> Server<TClientMsg, TServerMsg>::getMsg() {
         return _msgQueue.pop();
     }
 
@@ -246,7 +246,7 @@ namespace JC_Engine {
                     ssize_t clientStatus = readClientMsg(_clientFds[i].fd, _fdInBuffers[id], _fdInBufferSize[id]);
                     if (clientStatus == 1) {
                         const std::vector<std::byte>& clientMsgArr = _fdInBuffers[id];
-                        _msgQueue.push(parseClientMsg(clientMsgArr));
+                        _msgQueue.push(std::make_pair(id, parseClientMsg(clientMsgArr)));
 
                         _fdInBuffers[id].clear();
                         _fdInBuffers[id].resize(sizeof(TClientMsg));

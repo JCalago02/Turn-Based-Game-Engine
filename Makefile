@@ -38,6 +38,3 @@ $(TEST_EXECUTABLE): $(SRCS_NO_MAIN) $(TEST_SRCS)
 	$(CXX) $(CXXFLAGS) $^ -o $@
 clean:
 	rm -rf $(BUILD_DIR) $(EXECUTABLE) $(TEST_EXECUTABLE)
-
-
-make: *** No rule to make target 'build/SimpleClient.o', needed by 'exec'.  Stop.

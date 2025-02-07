@@ -1,61 +1,53 @@
-#include <iostream>
-
-#include <chrono>
-#include <thread>
-
 #include "../include/Server.h"
 #include "../include/Client.h"
+#include "../include/ConnectFourEngine.h"
 
 #define PORTNO 12345
-int main() {  
+int main() {
+    JC_Engine::Server<JC_Engine::ConnectFourMessage, JC_Engine::ConnectFourMessage> server(PORTNO);
+    JC_Engine::Client<JC_Engine::ConnectFourMessage, JC_Engine::ConnectFourMessage> playerOne("127.0.0.1", PORTNO);
+    JC_Engine::Client<JC_Engine::ConnectFourMessage, JC_Engine::ConnectFourMessage> playerTwo("127.0.0.1", PORTNO);
+
+    JC_Engine::ConnectFourEngine engine;
+
+    server.start();
+    playerOne.start();
+    playerTwo.start();
+
+    int p1Id = server.acceptConnection();
+    int p2Id = server.acceptConnection();
+
+    std::cout << "P1Id: " << p1Id << ", P2Id: " << p2Id << std::endl;
     
-    
-    std::cout << "Instantiating server " << std::endl;
-    JC_Engine::Server<int, int> myServer(PORTNO);
+    JC_Engine::ConnectFourMessage initPing{1, 1};
 
-    std::cout << "Starting Server " << std::endl;
-    myServer.start();
-    if (!myServer.isValid()) {
-        myServer.printErr();
-        exit(1);
-    } else {
-        std::cout << "No errors on server startup " << std::endl;
-    }
+    playerOne.sendMsg(initPing);
+    playerTwo.sendMsg(initPing);
 
-    std::cout << "Instantiating Client " << std::endl;
-    JC_Engine::Client<int, int> myClient("127.0.0.1", PORTNO);
+    std::pair<int, JC_Engine::ConnectFourMessage> playerOneJoin = server.getMsg();
+    std::pair<int, JC_Engine::ConnectFourMessage> playerTwoJoin = server.getMsg();
+
+    engine.processMessage({playerOneJoin.first, 1});
+    engine.processMessage({playerTwoJoin.first, 1});
 
 
-    std::cout << "Connecting Server " << std::endl;
-    myClient.start();
+    JC_Engine::ConnectFourMessage p1JoinConf = engine.getNextMessage();
+    JC_Engine::ConnectFourMessage p2JoinConf = engine.getNextMessage();
+    JC_Engine::ConnectFourMessage p1StartPrompt = engine.getNextMessage();
 
-    std::cout << "Accepting connection on server " << std::endl;
-    myServer.acceptConnection();
+    std::cout << "p1 Join ret msg: " << p1JoinConf.playerId << ", " << p1JoinConf.msg << std::endl;
+    std::cout << "p2 Join ret msg: " << p2JoinConf.playerId << ", " << p2JoinConf.msg << std::endl;
 
-    std::cout << "Sending client msg: " << std::endl;
-    myClient.sendMsg(100);
+    server.sendMsg(p1JoinConf.playerId, p1JoinConf);
+    server.sendMsg(p2JoinConf.playerId, p2JoinConf);
+    server.sendMsg(p1StartPrompt.playerId, p1StartPrompt);
 
-    std::cout << "Sending additional client msg: " << std::endl;
-    myClient.sendMsg(200);
+    JC_Engine::ConnectFourMessage clientP1JoinConf = playerOne.getMsg();
+    JC_Engine::ConnectFourMessage clientP2JoinConf = playerTwo.getMsg();
+    JC_Engine::ConnectFourMessage clientP1StartPrompt = playerOne.getMsg();
 
-    int waitTimeSec = 2;
-    std::cout << "Sleeping for " << waitTimeSec << " seconds" << std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(waitTimeSec));
-
-    std::cout << "Reading server for messages: " << std::endl;
-    int msg = myServer.getMsg();
-    std::cout << "Recieved " << msg << " on server " << std::endl;
-    
-    msg = myServer.getMsg();
-    std::cout << "Recieved " << msg << " on server " << std::endl;
-
-    std::cout << "Stopping client manually" << std::endl;
-    myClient.stop();
-
-    std::cout << "Stopping server manually" << std::endl;
-    myServer.stop();
-    
-    std::cout << "Done!" << std::endl;
-    return 0;
+    std::cout << "client p1 Join ret msg: " << clientP1JoinConf.playerId << ", " << clientP1JoinConf.msg << std::endl;
+    std::cout << "client p2 Join ret msg: " << clientP2JoinConf.playerId << ", " << clientP2JoinConf.msg << std::endl;
+    std::cout << "client p1 Prompt ret msg: " << clientP1StartPrompt.playerId << ", " << clientP1StartPrompt.msg << std::endl;
 }
 

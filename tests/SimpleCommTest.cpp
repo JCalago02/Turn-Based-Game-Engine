@@ -13,12 +13,14 @@ TEST_CASE("Server Recieves Single Msg From Client (Single Client)", "[server]") 
     JC_Engine::Client<int, int> myClient(LOOPBACKADDR, TESTPORT);
     myClient.start();
 
-    myServer.acceptConnection();
+    int clientId = myServer.acceptConnection();
 
     int MSG = 100;
     myClient.sendMsg(MSG);
 
-    REQUIRE(myServer.getMsg() == MSG);
+    std::pair<int, int> clientIdAndMsg = myServer.getMsg();
+    REQUIRE(clientIdAndMsg.first == clientId);
+    REQUIRE(clientIdAndMsg.second == MSG);
 }
 
 
@@ -44,7 +46,7 @@ TEST_CASE("Server Recieves Multiple Msgs From Client (Single Clients)", "[server
 
 
     for (int msg = 0; msg < NUMMSGS; msg++) {
-        recMsgs.push_back(myServer.getMsg());
+        recMsgs.push_back(myServer.getMsg().second);
     }
 
     for (int msgI = 0; msgI < NUMMSGS; msgI++) {
@@ -74,7 +76,7 @@ TEST_CASE("Server Recieves Single Msg From Client (Multiple Clients)", "[server-
     }
 
     for (int clientI = 0; clientI < NUMCLIENTS; clientI++) {
-        int msg = myServer.getMsg();
+        int msg = myServer.getMsg().second;
         recMsgs[msg] = true;
     }
 
