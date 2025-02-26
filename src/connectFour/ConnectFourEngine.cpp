@@ -1,4 +1,4 @@
-#include "../include/ConnectFourEngine.h"
+#include "../../include/connectFour/ConnectFourEngine.h"
 
 namespace JC_Engine {
     static inline constexpr size_t WIDTH = 7;

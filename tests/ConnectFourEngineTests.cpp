@@ -1,5 +1,5 @@
 #include "catch.hpp"
-#include "../include/ConnectFourEngine.h"
+#include "../include/connectFour/ConnectFourEngine.h"
 
 #define PLAYERONEID 1
 #define PLAYERTWOID 2

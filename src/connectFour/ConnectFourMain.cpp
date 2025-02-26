@@ -1,13 +1,13 @@
-#include "../include/Server.h"
-#include "../include/Client.h"
-#include "../include/ConnectFourEngine.h"
+#include "Server.h"
+#include "Client.h"
+#include "connectFour/ConnectFourEngine.h"
 
 #define PORTNO 12345
 int main() {
     JC_Engine::Server<JC_Engine::ConnectFourMessage, JC_Engine::ConnectFourMessage> server(PORTNO);
     JC_Engine::Client<JC_Engine::ConnectFourMessage, JC_Engine::ConnectFourMessage> playerOne("127.0.0.1", PORTNO);
     JC_Engine::Client<JC_Engine::ConnectFourMessage, JC_Engine::ConnectFourMessage> playerTwo("127.0.0.1", PORTNO);
-
+    
     JC_Engine::ConnectFourEngine engine;
 
     server.start();
@@ -24,6 +24,7 @@ int main() {
     playerOne.sendMsg(initPing);
     playerTwo.sendMsg(initPing);
 
+    // should be encapsulated by gameServer -----------------------------------------------
     std::pair<int, JC_Engine::ConnectFourMessage> playerOneJoin = server.getMsg();
     std::pair<int, JC_Engine::ConnectFourMessage> playerTwoJoin = server.getMsg();
 
@@ -42,6 +43,8 @@ int main() {
     server.sendMsg(p2JoinConf.playerId, p2JoinConf);
     server.sendMsg(p1StartPrompt.playerId, p1StartPrompt);
 
+    // ------------------------------------------------------------------------------------
+
     JC_Engine::ConnectFourMessage clientP1JoinConf = playerOne.getMsg();
     JC_Engine::ConnectFourMessage clientP2JoinConf = playerTwo.getMsg();
     JC_Engine::ConnectFourMessage clientP1StartPrompt = playerOne.getMsg();
@@ -49,5 +52,7 @@ int main() {
     std::cout << "client p1 Join ret msg: " << clientP1JoinConf.playerId << ", " << clientP1JoinConf.msg << std::endl;
     std::cout << "client p2 Join ret msg: " << clientP2JoinConf.playerId << ", " << clientP2JoinConf.msg << std::endl;
     std::cout << "client p1 Prompt ret msg: " << clientP1StartPrompt.playerId << ", " << clientP1StartPrompt.msg << std::endl;
+
+    return 0;
 }
 

@@ -1,40 +1,51 @@
+INCLUDE_DIR := ./include
 CXX := g++
-CXXFLAGS := -std=c++17 -Wall
+CXXFLAGS := -std=c++17 -Wall -I$(INCLUDE_DIR)
 
 SRC_DIR := src
 BUILD_DIR := build
+BIN_DIR := bin
+INCLUDE_DIR := include
 TEST_DIR := tests
 
-EXECUTABLE := exec
-TEST_EXECUTABLE := test
+COMMON_SRCS := $(wildcard $(SRC_DIR)/*.cpp)
+COMMON_OBJS := $(COMMON_SRCS:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o)
 
-# Generates a list of all .cpp files in given dir
-SRCS := $(wildcard $(SRC_DIR)/*.cpp)
+# Connect Four Module Rules --------------------------
+C4_SRCS := $(wildcard $(SRC_DIR)/connectFour/*.cpp)
+C4_OBJS := $(C4_SRCS:$(SRC_DIR)/connectFour/%.cpp=$(BUILD_DIR)/connectFour/%.o)
+C4_EXE := $(BIN_DIR)/connectFourEntry
+
+# Test Module Rules ----------------------------------
+ENTRY_FILES := $(SRC_DIR)/connectFour/ConnectFourMain.cpp
+TESTABLE_SRCS := $(filter-out $(ENTRY_FILES), $(COMMON_SRCS) $(C4_SRCS))
+TESTABLE_OBJS := $(TESTABLE_SRCS:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o)
+
+TEST_EXE := $(BIN_DIR)/test
 TEST_SRCS := $(wildcard $(TEST_DIR)/*.cpp)
-SRCS_NO_MAIN := $(filter-out $(SRC_DIR)/main.cpp, $(SRCS))
+TEST_OBJS := $(TEST_SRCS:$(TEST_DIR)/%.cpp=$(BUILD_DIR)/%.o)
 
-# Generates a list of .o files in BUILD_DIR for all input files generated via SRCS
-OBJS := $(patsubst $(SRC_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(SRCS))
-OBJS_NO_MAIN := $(patsubst $(SRC_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(SRCS_NO_MAIN))
-TEST_OBJS:= $(patsubst $(TEST_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(TEST_SRCS))
+all: $(C4_EXE) $(TEST_EXE)
 
+connectFour: $(C4_EXE)
 
-# $<: First prereq (ie src/main.cpp)
-# $@: Name of output (ie build/main.o)
-# Compiles .cpp into corresponding .o if .cpp has changed
-# Activated by OBJS dependency
+test: $(TEST_EXE)
+
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
+	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: $(TEST_DIR)/%.cpp
+	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# $< all dependencies (ie all $(BUILD_DIR)/%.o)
-# Links all .o files in build to $(EXECUTABLE)
-$(EXECUTABLE) : $(OBJS)
+$(C4_EXE): $(C4_OBJS) $(COMMON_OBJS)
+	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
-$(TEST_EXECUTABLE): $(SRCS_NO_MAIN) $(TEST_SRCS)
+$(TEST_EXE): $(TESTABLE_OBJS) $(TEST_OBJS)
+	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) $^ -o $@
+
 clean:
-	rm -rf $(BUILD_DIR) $(EXECUTABLE) $(TEST_EXECUTABLE)
+	rm -rf $(BUILD_DIR) $(BIN_DIR)
